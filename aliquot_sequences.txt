@@ -30,6 +30,10 @@ Number: 43
 Divisors: [1]
 Sum: 1
 
+Number: 45
+Divisors: [1, 3, 5, 9, 15]
+Sum: 33
+
 Number: 50
 Divisors: [1, 2, 5, 10, 25]
 Sum: 43
@@ -38,13 +42,25 @@ Number: 59
 Divisors: [1]
 Sum: 1
 
+Number: 78
+Divisors: [1, 2, 3, 6, 13, 26, 39]
+Sum: 90
+
 Number: 81
 Divisors: [1, 3, 9, 27]
 Sum: 40
 
+Number: 90
+Divisors: [1, 2, 3, 5, 6, 9, 10, 15, 18, 30, 45]
+Sum: 144
+
 Number: 138
 Divisors: [1, 2, 3, 6, 23, 46, 69]
 Sum: 150
+
+Number: 144
+Divisors: [1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 36, 48, 72]
+Sum: 259
 
 Number: 150
 Divisors: [1, 2, 3, 5, 6, 10, 15, 25, 30, 50, 75]
@@ -65,6 +81,10 @@ Sum: 234
 Number: 234
 Divisors: [1, 2, 3, 6, 9, 13, 18, 26, 39, 78, 117]
 Sum: 312
+
+Number: 259
+Divisors: [1, 7, 37]
+Sum: 45
 
 Number: 284
 Divisors: [1, 2, 4, 71, 142]

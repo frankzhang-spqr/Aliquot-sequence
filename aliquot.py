@@ -115,18 +115,37 @@ def create_terminal_table(sequence: List[int], divisors_list: List[List[int]]) -
 
 def plot_sequence(sequence: List[int], step: int, fig_path: str = "temp_plots") -> str:
     """Plots the sequence up to the current step and saves it."""
+    # Create figure with fixed size
     plt.figure(figsize=(10, 6))
-    plt.plot(sequence[:step+1], marker='o', linestyle='-', color='b')
+    plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+    
+    # Plot points and lines
+    x = list(range(step + 1))
+    y = sequence[:step + 1]
+    plt.plot(x, y, marker='o', linestyle='-', color='b', zorder=1)
+    
+    # Add labels for each point
+    for i, value in enumerate(y):
+        plt.annotate(str(value), (i, value), textcoords="offset points", 
+                    xytext=(0, 10), ha='center', fontsize=8)
+    
+    # Customize the plot
     plt.xlabel("Step")
     plt.ylabel("Value")
-    plt.title(f"Aliquot Sequence (Step {step})")
-    plt.grid(True)
+    plt.title(f"Aliquot Sequence Starting from {sequence[0]} (Step {step})")
+    plt.grid(True, linestyle='--', alpha=0.7)
     
+    # Calculate sequence range for consistent scaling
+    max_val = max(sequence)
+    plt.ylim(-1, max_val * 1.2)  # Fixed y-axis range
+    plt.xlim(-0.5, max(10, step + 1.5))  # Fixed x-axis range
+    
+    # Save the frame with fixed dimensions
     if not os.path.exists(fig_path):
         os.makedirs(fig_path)
     
     filename = f"{fig_path}/step_{step:03d}.png"
-    plt.savefig(filename)
+    plt.savefig(filename, dpi=100, bbox_inches=None)  # Don't adjust bbox
     plt.close()
     return filename
 
@@ -137,24 +156,20 @@ def ensure_min_frames(sequence: List[int], frames: List[str]) -> List[str]:
         frames.append(frame_path)
     return frames
 
-def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]], str]:
-    """Generates the aliquot sequence without live visualization."""
+def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]]]:
+    """Core logic for calculating aliquot sequence, shared by both modes."""
     if use_cache and n in sequence_cache:
-        return sequence_cache[n], divisors_cache[n], f'aliquot_gifs/{n}.gif'
+        return sequence_cache[n], divisors_cache[n]
 
     sequence = [n]
     divisors_list = []
     seen: Set[int] = set()
-    frames = []
-    
-    # Special case for n=1
+
     if n == 1:
         divs, total = proper_divisors(1)
         divisors_list.append(divs)
-        frames = ensure_min_frames(sequence, frames)
     else:
         for step in range(max_iter):
-            # Calculate divisors and update sequence
             divs, total = proper_divisors(sequence[-1])
             divisors_list.append(divs)
 
@@ -163,48 +178,50 @@ def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = Tru
                 remaining_sequence = sequence_cache[total]
                 divisors_list.extend(divisors_cache[total])
                 sequence.extend(remaining_sequence[1:])
-                frames = ensure_min_frames(sequence, frames)
                 break
-            
-            # Save to files
+
             update_sequence_file(sequence[-1], divs, total)
             update_chains_file(sequence)
-            
-            # Create and save plot frame
-            frame_path = plot_sequence(sequence, step)
-            frames.append(frame_path)
-            
+
             if total in seen or total == 0:
                 break
             if step >= max_iter - 1:
                 break
-            
+
             seen.add(total)
             sequence.append(total)
-    
-    # Cache the sequence and divisors if enabled
+
     if use_cache:
         for i, num in enumerate(sequence):
             if num not in sequence_cache:
                 sequence_cache[num] = sequence[i:]
                 divisors_cache[num] = divisors_list[i:]
 
+    return sequence, divisors_list
+
+def create_sequence_gif(sequence: List[int], gif_path: str) -> str:
+    """Create GIF visualization of the sequence, shared by both modes."""
+    frames = []
+    
     try:
+        # Create a frame for each step
+        for step in range(len(sequence)):
+            frame_path = plot_sequence(sequence[:step + 1], step)
+            frames.append(frame_path)
+
         # Create animated GIF
         if not os.path.exists('aliquot_gifs'):
             os.makedirs('aliquot_gifs')
-        gif_path = f'aliquot_gifs/{n}.gif'
-        
-        if frames:  # Only create GIF if we have frames
+
+        if frames:
             images = [imageio.imread(frame) for frame in frames]
             imageio.mimsave(gif_path, images, duration=0.5)
         else:
-            # Create a simple frame for numbers with no sequence
-            frame_path = plot_sequence([n], 0)
+            frame_path = plot_sequence([sequence[0]], 0)
             imageio.mimsave(gif_path, [imageio.imread(frame_path)], duration=0.5)
             os.remove(frame_path)
     except Exception as e:
-        print(f"Error creating GIF for {n}: {str(e)}")
+        print(f"Error creating GIF: {str(e)}")
         gif_path = ""
     finally:
         # Cleanup temporary files
@@ -218,18 +235,20 @@ def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = Tru
                 os.rmdir('temp_plots')
             except:
                 pass
-    
+
+    return gif_path
+
+def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]], str]:
+    """Generates the aliquot sequence without live visualization."""
+    sequence, divisors_list = calculate_sequence(n, max_iter, use_cache)
+    gif_path = f'aliquot_gifs/{n}.gif'
+    gif_path = create_sequence_gif(sequence, gif_path)
     return sequence, divisors_list, gif_path
 
 def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]], str]:
     """Generates the aliquot sequence with live visualization."""
-    if use_cache and n in sequence_cache:
-        return sequence_cache[n], divisors_cache[n], f'aliquot_gifs/{n}.gif'
-
     sequence = [n]
     divisors_list = []
-    seen: Set[int] = set()
-    frames = []
     
     progress = Progress(
         SpinnerColumn(),
@@ -241,88 +260,19 @@ def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tu
     table = create_terminal_table(sequence, divisors_list)
     
     with Live(Panel(Group(progress, table)), refresh_per_second=4) as live:
-        # Special case for n=1
-        if n == 1:
-            divs, total = proper_divisors(1)
-            divisors_list.append(divs)
-            frames = ensure_min_frames(sequence, frames)
-            progress.update(task, completed=max_iter)
-        else:
-            for step in range(max_iter):
-                # Calculate divisors and update sequence
-                divs, total = proper_divisors(sequence[-1])
-                divisors_list.append(divs)
-
-                if use_cache and total in sequence_cache:
-                    sequence.append(total)
-                    remaining_sequence = sequence_cache[total]
-                    divisors_list.extend(divisors_cache[total])
-                    sequence.extend(remaining_sequence[1:])
-                    frames = ensure_min_frames(sequence, frames)
-                    progress.update(task, completed=max_iter)
-                    break
-
-                # Update terminal display
-                table = create_terminal_table(sequence, divisors_list)
-                live.update(Panel(Group(progress, table)))
-                
-                # Save to files
-                update_sequence_file(sequence[-1], divs, total)
-                update_chains_file(sequence)
-                
-                # Create and save plot frame
-                frame_path = plot_sequence(sequence, step)
-                frames.append(frame_path)
-                
-                if total in seen or total == 0:
-                    progress.update(task, completed=max_iter)
-                    break
-                if step >= max_iter - 1:
-                    progress.update(task, completed=max_iter)
-                    break
-                
-                seen.add(total)
-                sequence.append(total)
-                progress.advance(task)
-                time.sleep(0.1)  # Slow down for visibility
+        # Calculate sequence with live updates
+        sequence, divisors_list = calculate_sequence(n, max_iter, use_cache)
+        for i in range(len(sequence)):
+            # Update terminal display
+            table = create_terminal_table(sequence[:i+1], divisors_list[:i+1])
+            live.update(Panel(Group(progress, table)))
+            progress.advance(task)
+            time.sleep(0.1)
+        progress.update(task, completed=max_iter)
     
-    # Cache the sequence and divisors if enabled
-    if use_cache:
-        for i, num in enumerate(sequence):
-            if num not in sequence_cache:
-                sequence_cache[num] = sequence[i:]
-                divisors_cache[num] = divisors_list[i:]
-
-    try:
-        # Create animated GIF
-        if not os.path.exists('aliquot_gifs'):
-            os.makedirs('aliquot_gifs')
-        gif_path = f'aliquot_gifs/{n}.gif'
-        
-        if frames:  # Only create GIF if we have frames
-            images = [imageio.imread(frame) for frame in frames]
-            imageio.mimsave(gif_path, images, duration=0.5)
-        else:
-            # Create a simple frame for numbers with no sequence
-            frame_path = plot_sequence([n], 0)
-            imageio.mimsave(gif_path, [imageio.imread(frame_path)], duration=0.5)
-            os.remove(frame_path)
-    except Exception as e:
-        print(f"Error creating GIF for {n}: {str(e)}")
-        gif_path = ""
-    finally:
-        # Cleanup temporary files
-        for frame in frames:
-            try:
-                os.remove(frame)
-            except:
-                pass
-        if os.path.exists('temp_plots'):
-            try:
-                os.rmdir('temp_plots')
-            except:
-                pass
-    
+    # Create visualization
+    gif_path = f'aliquot_gifs/{n}.gif'
+    gif_path = create_sequence_gif(sequence, gif_path)
     return sequence, divisors_list, gif_path
 
 def process_range(start: int, end: int) -> None:
