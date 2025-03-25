@@ -54,42 +54,41 @@ def update_sequence_file(number, divisors, total):
             f.write('\n\n'.join(entries) + '\n\n')
 
 def update_chains_file(sequence):
-    """Updates the chains file with sequences and subsequences."""
+    """Updates the chains file with a complete sequence for each unique number."""
     filename = "aliquot_chains.txt"
-    # Create entry for the main sequence
-    entry = f"Chain starting from {sequence[0]}:\n"
-    entry += " -> ".join(map(str, sequence))
-    entry += "\n\n"
     
-    # Create entries for all subsequences
-    for i in range(1, len(sequence)):
-        subseq_entry = f"Chain starting from {sequence[i]}:\n"
-        subseq_entry += " -> ".join(map(str, sequence[i:]))
-        entry += subseq_entry + "\n\n"
+    # Add 0 to the sequence if it ends with 1
+    if sequence[-1] == 1:
+        sequence = sequence + [0]
     
-    # Read existing entries
-    entries = []
+    # Create entries for unique numbers in sequence with their full remaining sequence
+    entries = {}
+    for i, num in enumerate(sequence):
+        if num not in entries:
+            entry = f"Chain starting from {num}:\n"
+            entry += " -> ".join(map(str, sequence[i:]))
+            entries[num] = entry + "\n\n"
+    
+    # Read existing file entries
+    existing_entries = {}
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             content = f.read().strip()
             if content:
-                entries = content.split('\n\n')
+                for entry in content.split('\n\n'):
+                    if entry:
+                        num = int(entry.split('\n')[0].split()[3].rstrip(':'))
+                        existing_entries[num] = entry + "\n\n"
     
-    # Add new entries if they don't exist
-    chains = entry.strip().split('\n\n')
-    for chain in chains:
-        if chain not in entries:
-            entries.append(chain)
+    # Merge entries, keeping only the longest sequence for each number
+    all_entries = existing_entries | entries
     
     # Sort entries based on starting number
-    def get_start_number(entry):
-        return int(entry.split()[3].rstrip(':'))
-    
-    entries.sort(key=get_start_number)
+    sorted_entries = sorted(all_entries.values(), key=lambda e: int(e.split('\n')[0].split()[3].rstrip(':')))
     
     # Write back to file
     with open(filename, 'w') as f:
-        f.write('\n\n'.join(entries) + '\n\n')
+        f.write(''.join(sorted_entries))
 
 def create_terminal_table(sequence, divisors_list):
     """Creates a rich table for terminal display."""
@@ -197,7 +196,7 @@ def aliquot_sequence(n, max_iter=1000):
     return sequence, divisors_list, gif_path
 
 # Example usage
-n = 20  # Example starting number
+n = 138  # Example starting number
 rprint("[bold green]Starting Aliquot Sequence Analysis[/bold green]")
 sequence, divisors_list, gif_path = aliquot_sequence(n)
 rprint("\n[bold blue]Analysis Complete![/bold blue]")
