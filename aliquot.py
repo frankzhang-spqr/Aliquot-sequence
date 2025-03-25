@@ -114,38 +114,39 @@ def create_terminal_table(sequence: List[int], divisors_list: List[List[int]]) -
     return table
 
 def plot_sequence(sequence: List[int], step: int, fig_path: str = "temp_plots") -> str:
-    """Plots the sequence up to the current step and saves it."""
-    # Create figure with fixed size
+    """Plots the sequence progression up to the current step and saves it."""
     plt.figure(figsize=(10, 6))
     plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
     
+    # Extract current sequence up to step
+    current_sequence = sequence[:step + 1]
+    
     # Plot points and lines
-    x = list(range(step + 1))
-    y = sequence[:step + 1]
-    plt.plot(x, y, marker='o', linestyle='-', color='b', zorder=1)
+    x = list(range(len(current_sequence)))
+    plt.plot(x, current_sequence, marker='o', linestyle='-', color='b', zorder=1)
     
     # Add labels for each point
-    for i, value in enumerate(y):
+    for i, value in enumerate(current_sequence):
         plt.annotate(str(value), (i, value), textcoords="offset points", 
                     xytext=(0, 10), ha='center', fontsize=8)
     
     # Customize the plot
     plt.xlabel("Step")
     plt.ylabel("Value")
-    plt.title(f"Aliquot Sequence Starting from {sequence[0]} (Step {step})")
+    plt.title("Aliquot Sequence")
     plt.grid(True, linestyle='--', alpha=0.7)
     
-    # Calculate sequence range for consistent scaling
-    max_val = max(sequence)
+    # Calculate range for consistent scaling
+    max_val = max(sequence) if sequence else 1
     plt.ylim(-1, max_val * 1.2)  # Fixed y-axis range
-    plt.xlim(-0.5, max(10, step + 1.5))  # Fixed x-axis range
+    plt.xlim(-0.5, max(10, len(sequence) - 1 + 0.5))  # Fixed x-axis range
     
-    # Save the frame with fixed dimensions
+    # Save the frame
     if not os.path.exists(fig_path):
         os.makedirs(fig_path)
     
     filename = f"{fig_path}/step_{step:03d}.png"
-    plt.savefig(filename, dpi=100, bbox_inches=None)  # Don't adjust bbox
+    plt.savefig(filename, dpi=100, bbox_inches=None)
     plt.close()
     return filename
 

@@ -58,6 +58,9 @@ Chain starting from 43:
 Chain starting from 45:
 45
 
+Chain starting from 48:
+48 -> 76 -> 64
+
 Chain starting from 50:
 50
 
@@ -67,8 +70,14 @@ Chain starting from 54:
 Chain starting from 59:
 59 -> 1 -> 0
 
+Chain starting from 64:
+64
+
 Chain starting from 66:
 66 -> 78 -> 90 -> 144 -> 259 -> 45
+
+Chain starting from 76:
+76 -> 64
 
 Chain starting from 78:
 78 -> 90 -> 144 -> 259 -> 45
