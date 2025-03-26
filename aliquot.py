@@ -157,10 +157,19 @@ def ensure_min_frames(sequence: List[int], frames: List[str]) -> List[str]:
         frames.append(frame_path)
     return frames
 
-def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]]]:
+def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, allow_recalc: bool = False) -> Tuple[List[int], List[List[int]]]:
     """Core logic for calculating aliquot sequence, shared by both modes."""
-    if use_cache and n in sequence_cache:
+    # Check if number exists and recalculation is not allowed
+    if not allow_recalc and use_cache and n in sequence_cache:
         return sequence_cache[n], divisors_cache[n]
+
+    # Check if already calculated in files
+    if not allow_recalc:
+        filename = "aliquot_sequences.txt"
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                if f"Number: {n}\n" in f.read():
+                    return [], []  # Return empty to indicate number already exists
 
     sequence = [n]
     divisors_list = []
@@ -170,10 +179,11 @@ def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> 
         divs, total = proper_divisors(1)
         divisors_list.append(divs)
     else:
-        for step in range(max_iter):
+        for step in range(min(max_iter, 1000)):  # Enforce 1000 step limit
             divs, total = proper_divisors(sequence[-1])
             divisors_list.append(divs)
 
+            # Check for existing cached sequence if using cache
             if use_cache and total in sequence_cache:
                 sequence.append(total)
                 remaining_sequence = sequence_cache[total]
@@ -184,14 +194,22 @@ def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> 
             update_sequence_file(sequence[-1], divs, total)
             update_chains_file(sequence)
 
-            if total in seen or total == 0:
+            # Stop conditions
+            if total == 0:  # Stop at 0
+                sequence.append(total)
+                divisors_list.append([])
                 break
-            if step >= max_iter - 1:
+            if total in seen:  # Stop on loop detected
+                sequence.append(total)
+                divisors_list.append(divs)
+                break
+            if step >= min(max_iter, 1000) - 1:  # Stop at max iterations
                 break
 
             seen.add(total)
             sequence.append(total)
 
+    # Cache the results if using cache
     if use_cache:
         for i, num in enumerate(sequence):
             if num not in sequence_cache:
@@ -239,14 +257,18 @@ def create_sequence_gif(sequence: List[int], gif_path: str) -> str:
 
     return gif_path
 
-def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]], str]:
+def aliquot_sequence_no_live(n: int, max_iter: int = 1000, use_cache: bool = True, allow_recalc: bool = False) -> Tuple[List[int], List[List[int]], str]:
     """Generates the aliquot sequence without live visualization."""
-    sequence, divisors_list = calculate_sequence(n, max_iter, use_cache)
+    sequence, divisors_list = calculate_sequence(n, max_iter, use_cache, allow_recalc)
+    
+    # Return early if number already exists and recalculation not allowed
+    if not sequence:
+        return [], [], ""
     gif_path = f'aliquot_gifs/{n}.gif'
     gif_path = create_sequence_gif(sequence, gif_path)
     return sequence, divisors_list, gif_path
 
-def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tuple[List[int], List[List[int]], str]:
+def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, allow_recalc: bool = False) -> Tuple[List[int], List[List[int]], str]:
     """Generates the aliquot sequence with live visualization."""
     sequence = [n]
     divisors_list = []
@@ -262,7 +284,12 @@ def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tu
     
     with Live(Panel(Group(progress, table)), refresh_per_second=4) as live:
         # Calculate sequence with live updates
-        sequence, divisors_list = calculate_sequence(n, max_iter, use_cache)
+        sequence, divisors_list = calculate_sequence(n, max_iter, use_cache, allow_recalc)
+        
+        # Return early if number already exists and recalculation not allowed
+        if not sequence:
+            rprint("[yellow]This number has already been calculated. Use allow_recalc=True to recalculate.[/yellow]")
+            return [], [], ""
         for i in range(len(sequence)):
             # Update terminal display
             table = create_terminal_table(sequence[:i+1], divisors_list[:i+1])
@@ -276,7 +303,7 @@ def aliquot_sequence(n: int, max_iter: int = 1000, use_cache: bool = True) -> Tu
     gif_path = create_sequence_gif(sequence, gif_path)
     return sequence, divisors_list, gif_path
 
-def process_range(start: int, end: int) -> None:
+def process_range(start: int, end: int, allow_recalc: bool = False) -> None:
     """Process a range of numbers, utilizing cached results for efficiency."""
     total_numbers = end - start + 1
     
@@ -299,7 +326,7 @@ def process_range(start: int, end: int) -> None:
                 
                 # Calculate for current number
                 try:
-                    sequence, divisors_list, gif_path = aliquot_sequence_no_live(n)
+                    sequence, divisors_list, gif_path = aliquot_sequence_no_live(n, allow_recalc=allow_recalc)
                     status = "[green]Complete[/green]"
                     if not gif_path:
                         status += " (GIF failed)"
@@ -330,12 +357,13 @@ def main() -> None:
     rprint("2. Range of numbers")
     
     mode = Prompt.ask("Select mode", choices=["1", "2"])
+    allow_recalc = Prompt.ask("Allow recalculation of existing numbers? (y/n)", choices=["y", "n"]) == "y"
     
     if mode == "1":
         n = IntPrompt.ask("Enter a number")
         rprint(f"\n[bold green]Starting Aliquot Sequence Analysis for {n}[/bold green]")
         try:
-            sequence, divisors_list, gif_path = aliquot_sequence(n)
+            sequence, divisors_list, gif_path = aliquot_sequence(n, allow_recalc=allow_recalc)
             rprint("\n[bold blue]Analysis Complete![/bold blue]")
             if gif_path:
                 rprint(f"[yellow]Results saved to aliquot_sequences.txt, aliquot_chains.txt, and {gif_path}[/yellow]")
@@ -348,7 +376,7 @@ def main() -> None:
         end = IntPrompt.ask("Enter end number")
         if start > end:
             start, end = end, start
-        process_range(start, end)
+        process_range(start, end, allow_recalc)
 
 if __name__ == "__main__":
     main()
