@@ -18,18 +18,27 @@ divisors_cache: Dict[int, List[int]] = {}
 
 def proper_divisors(n: int) -> Tuple[List[int], int]:
     """Returns the proper divisors and their sum for n."""
-    if n == 1:
+    if n <= 1:
         return [], 0
-    divisors = [1]  # 1 is always a divisor
+    
+    # Add progress display for large numbers
+    if n > 1000000:
+        rprint(f"[yellow]Finding divisors for {n}...[/yellow]")
+    
+    divisors = [1]  # 1 is always a proper divisor
     total = 1
+    
+    # Try all possible divisors up to square root
     sqrt_n = int(n**0.5)
     for i in range(2, sqrt_n + 1):
         if n % i == 0:
             divisors.append(i)
             total += i
-            if i != n // i:  # Avoid adding square root twice
-                divisors.append(n // i)
-                total += n // i
+            pair = n // i
+            if pair != i:  # Don't add square root twice
+                divisors.append(pair)
+                total += pair
+                
     return sorted(divisors), total
 
 def update_sequence_file(number: int, divisors: List[int], total: int) -> None:
@@ -157,7 +166,7 @@ def ensure_min_frames(sequence: List[int], frames: List[str]) -> List[str]:
         frames.append(frame_path)
     return frames
 
-def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, allow_recalc: bool = False) -> Tuple[List[int], List[List[int]]]:
+def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, allow_recalc: bool = False, batch_size: int = 10) -> Tuple[List[int], List[List[int]]]:
     """Core logic for calculating aliquot sequence, shared by both modes."""
     # Check if number exists and recalculation is not allowed
     if not allow_recalc and use_cache and n in sequence_cache:
@@ -191,23 +200,37 @@ def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, all
                 sequence.extend(remaining_sequence[1:])
                 break
 
-            update_sequence_file(sequence[-1], divs, total)
-            update_chains_file(sequence)
+            # Batch process file updates to reduce I/O operations
+            if len(sequence) % batch_size == 0:
+                update_sequence_file(sequence[-1], divs, total)
+                update_chains_file(sequence)
 
-            # Stop conditions
+            # Stop conditions with status messages
             if total == 0:  # Stop at 0
                 sequence.append(total)
                 divisors_list.append([])
+                rprint("[yellow]Sequence terminated at 0[/yellow]")
                 break
             if total in seen:  # Stop on loop detected
                 sequence.append(total)
                 divisors_list.append(divs)
+                rprint(f"[yellow]Loop detected: {sequence[-2]} -> {total}[/yellow]")
                 break
             if step >= min(max_iter, 1000) - 1:  # Stop at max iterations
+                rprint("[yellow]Reached maximum iterations (1000)[/yellow]")
                 break
+
+            # Log progress for large numbers or long sequences
+            if step > 0 and step % 100 == 0:
+                rprint(f"[cyan]Step {step}: Current number = {sequence[-1]}, Next = {total}[/cyan]")
 
             seen.add(total)
             sequence.append(total)
+
+    # Final update for any remaining entries
+    if sequence:
+        update_sequence_file(sequence[-1], divisors_list[-1], sequence[-1])
+        update_chains_file(sequence)
 
     # Cache the results if using cache
     if use_cache:
@@ -215,6 +238,10 @@ def calculate_sequence(n: int, max_iter: int = 1000, use_cache: bool = True, all
             if num not in sequence_cache:
                 sequence_cache[num] = sequence[i:]
                 divisors_cache[num] = divisors_list[i:]
+        
+        # Status message for caching
+        if len(sequence) > 1:
+            rprint(f"[green]Cached {len(sequence)} sequence values[/green]")
 
     return sequence, divisors_list
 
